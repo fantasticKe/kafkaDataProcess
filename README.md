@@ -1,3 +1,5 @@
 #kafka streams流式处理入ES库
 
 通过配置指定对kafka streams做何种nlp处理.再将处理完后的数据导入ES库
+
+将项目通过maven打成jar包后,在jar包的平级目录下放入topicConfig.yml文件,该配置文件配置了你将哪一个topic的数据进行哪些处理,输入到es的哪一个索引(index)中
