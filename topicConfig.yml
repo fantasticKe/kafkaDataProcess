@@ -1,0 +1,12 @@
+-
+    index: test
+    topic: meitan__news
+    processor:
+        - keyword
+        - contentRegion
+        - classification
+#        - enterpriseype
+        - webRegion
+        - finalRegion
+        - negativeScore
+        - hashCode
