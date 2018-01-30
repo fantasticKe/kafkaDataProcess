@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author maokeluo
@@ -23,7 +24,7 @@ public class Application {
 
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
     private static List<KafkaStreams> kafkaStreams = new ArrayList<>();
-
+    private static AtomicBoolean ymlModified = new AtomicBoolean();
     public static void main(String[] args) {
         //启动消费者
         ExecutorService consumerExcutor = Executors.newSingleThreadExecutor();
@@ -32,8 +33,8 @@ public class Application {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         ScheduledExecutorService executorService = Executors.newScheduledThreadPool(1);
         Runnable task = ()-> {
-            boolean ymlModified = PropertyReaderUtil.isYmlModified();
-            if (ymlModified){
+            ymlModified.set(PropertyReaderUtil.isYmlModified());
+            if (ymlModified.get()){
                 MyKafkaConsumer.getIndex();
                 executor.submit(()-> {
                     kafkaStreams.stream().forEach(p -> p.close());
