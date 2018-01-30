@@ -3,6 +3,7 @@ package cn.com.bonc.kafkaDataProcess.util;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.bonc.text.sdk.client.TextAbstractClient;
 import com.bonc.text.sdk.client.TextClassModelClient;
 import com.bonc.text.sdk.client.TextClassRuleClient;
 import com.bonc.text.sdk.client.TextSentimentAnalysisClient;
@@ -42,6 +43,8 @@ public class NlpUtil {
     public static final String NEGATIVE_SCORE = "negativeScore";
     /**企业类型**/
     public static final String ENTERPRISEYPE = "enterpriseType";
+    /**摘要**/
+    public static final String SUMMARY = "summary";
     /**地区配置**/
     public static final String REGIONRULE = "regionrule.txt";
     /**NLP ip地址**/
@@ -66,7 +69,7 @@ public class NlpUtil {
     public NlpUtil(String operate, String jsonStr) {
         JSONObject json = JSONObject.parseObject(jsonStr);
         String content = json.getString("content");
-        String contentRegion = "";
+        List<String> contentRegion;
         String webRegion = "";
         switch (operate){
             case KEYWORD:
@@ -75,16 +78,20 @@ public class NlpUtil {
                 break;
             case CONTENT_REGION:
                 contentRegion = getRegion(content);
-                json.put("regionContent",contentRegion);
+                String[] split = contentRegion.get(0).split("\t");//3:省 2: 市 1: 县 0 : 街道
+                json.put("con_province",split[3]);
+                json.put("con_city",split[2]);
+                json.put("con_county",split[1]);
+                json.put("con_road",split[0]);
                 break;
             case WEB_REGION:
-                webRegion = getRegion(json.getString("source"));
+                webRegion = getRegion(json.getString("source")).get(0).split("\t")[2];
                 json.put("regionSource",webRegion);
                 break;
             case FINAL_REGION:
                 contentRegion = getRegion(content);
-                webRegion = getRegion(json.getString("source"));
-                String finalRegion = getFinalRegion(contentRegion, webRegion);
+                webRegion = getRegion(json.getString("source")).get(0).split("\t")[2];
+                String finalRegion = getFinalRegion(contentRegion.get(2), webRegion);
                 json.put("regionFinal",finalRegion);
                 break;
             case HASHCODE:
@@ -103,6 +110,11 @@ public class NlpUtil {
                 String negativeScore = getNegativeScore(content);
                 json.put("poandnoCell",negativeScore);
                 break;
+            case SUMMARY:
+                String title = json.getString("title");
+                String summary = getSummary(title,content);
+                json.put("summary",summary);
+                break;
             default:
                 logger.error("没有该操作",operate);
                 break;
@@ -119,7 +131,7 @@ public class NlpUtil {
      * @create 18-1-4
      * @return region
      */
-    public String getRegion(String content){
+    public List<String> getRegion(String content){
         Forest forest = null;
         InputStream resourceAsStream = getClass().getClassLoader().getResourceAsStream(REGIONRULE);
         try {
@@ -127,25 +139,28 @@ public class NlpUtil {
         } catch (Exception e) {
             logger.error("创建forest失败",e);
         }
-        GetWord word = forest.getWord(content);
-        List<String> list = new ArrayList<String>();
-        String county = word.getFrontWords();
-        String city = word.getParam(0);
-        String province = word.getParam(1);
-        if (county != null) {
-            list.add(county + "\t" + city + "\t" + province);
+        GetWord udg = forest.getWord(content);
+        List<String> list = new ArrayList<>();
+        String road = udg.getFrontWords();	//街道、村庄、社区
+        String county = udg.getParam(0);	//县级
+        String city = udg.getParam(1);		//市级
+        String province = udg.getParam(2);	//省级
+        if (road != null) {
+            list.add(road + "\t" + county + "\t" + city + "\t" + province);
         }
-        else if (county == null && city != null) {
-            list.add(" " + "\t" + city + "\t" + province);
+        else if (road == null && county != null) {
+            list.add(" " + "\t" + county + "\t" + city + "\t" + province);
         }
-        else if (county == null && city == null && province != null) {
-            list.add(" " + "\t" + " " + "\t" + province);
+        else if (road == null && county == null && city != null) {
+            list.add(" " + "\t" + " " + "\t" + city + "\t" + province);
         }
-        else if (county == null && city == null && province == null) {
-            list.add(" " + "\t" + " " + "\t" + " ");
+        else if (road == null && county == null && city == null && province != null) {
+            list.add(" " + "\t" + " " + "\t" + " " + "\t" + province);
         }
-        String result = list.get(0).split("\t")[2];
-        return result;
+        else if (road == null && county == null && city == null && province == null) {
+            list.add(" " + "\t" + " " + "\t" + " " + "\t" + " ");
+        }
+        return list;
     }
 
     /**
@@ -260,5 +275,25 @@ public class NlpUtil {
     public String getHashCode(String content){
         int hashCode = content.hashCode();
         return String.valueOf(hashCode);
+    }
+
+    /**
+     * @desc 获取文章内容的摘要
+     * @author maokeluo
+     * @methodName getSummary
+     * @param  title, content
+     * @create 18-1-22
+     * @return java.lang.String
+     */
+    public String getSummary(String title, String content){
+        TextAbstractClient client = TextAbstractClient.getInstance();
+        client.setDomain(DOMAIN);
+
+        int numOfSub = 10;      //关键词个数
+        int percent = 5;        //摘要占文章长度的百分比
+        int numOfAbs = 2;       //摘要句数
+
+        String summary = client.getAbstract(title, content, numOfSub, percent, numOfAbs).getSummary();
+        return summary;
     }
 }

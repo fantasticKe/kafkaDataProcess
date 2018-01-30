@@ -13,7 +13,7 @@ import java.net.UnknownHostException;
 public class ESTools {
 
 	private static Logger logger = LoggerFactory.getLogger(ESTools.class);
-	private static final String IPCONFIG = "172.16.23.13";//"127.0.0.1";
+	private static final String IPCONFIG = "127.0.0.1";
 	private static final int PORT = 9303;
 
 	//创建私有对象

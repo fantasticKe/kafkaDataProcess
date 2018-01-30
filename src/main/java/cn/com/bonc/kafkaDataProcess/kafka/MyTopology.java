@@ -1,5 +1,6 @@
 package cn.com.bonc.kafkaDataProcess.kafka;
 
+import cn.com.bonc.kafkaDataProcess.kafka.processor.WebRegionProcessor;
 import cn.com.bonc.kafkaDataProcess.util.PropertyReaderUtil;
 import com.alibaba.fastjson.JSONArray;
 import org.apache.kafka.common.serialization.Serdes;
@@ -19,6 +20,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 
 /**
@@ -36,19 +39,14 @@ public class MyTopology {
         PropertyReaderUtil reader = new PropertyReaderUtil();
         Map<String, String> serverMap = reader.readPropertyFile("kafkaServer.properties");
 
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "my-stream-processing-application");
+        //props.put(StreamsConfig.APPLICATION_ID_CONFIG, "my-stream-processing-application");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, serverMap.get("bootstrap.servers"));
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, WallclockTimestampExtractor.class);
-        StreamsConfig config = new StreamsConfig(props);
-
         List<String> topices = new ArrayList<>();
         Map<String,List<String>> processes = new HashMap<>();
-
         try {
-
-            //InputStream inputStream = MyTopology.class.getClassLoader().getResourceAsStream("topicConfig.yml");
             File path = new File(System.getProperty("user.dir"));
             File file = new File(path,"topicConfig.yml");
             InputStream inputStream = new FileInputStream(file);
@@ -61,36 +59,40 @@ public class MyTopology {
                         topices.add(topic);
                         JSONArray processorArray = p.getJSONArray("processor");
                         List<String> processList = new ArrayList<>();
-                        processorArray.stream().forEach(q->processList.add(q.toString()));
+                        if (processorArray != null) processorArray.stream().forEach(q->processList.add(q.toString()));
                         processes.put(topic,processList);
                     });
         } catch (FileNotFoundException e) {
             logger.error("加载topic配置文件失败,找不到配置文件",e);
         }
+        Map<String,String> map = reader.readPropertyFile("processor.properties");
         for (String topic : topices){
             TopologyBuilder builder = new TopologyBuilder();
             String parentName = "source";
             builder.addSource("source",topic);
             List<String> processList = processes.get(topic);
             for (String process : processList) {
-                try {
+                /*try {
                     //工厂根据processor名称创建Processor实例
-                    ProcessorSupplierFactory.processor(process);
+                    ProcessorSupplierFactory.processor(topic,process);
                 } catch (Exception e) {
                     logger.error("创建processor失败,key:",process,e);
-                }
+                }*/
+
                 //为Builder添加processor拓扑
-                builder.addProcessor(process,new ProcessorSupplierFactory(), parentName);
+                builder.addProcessor(process, new ProcessorSupplierFactory(map.get(process)), parentName);
                 //现阶段暂需要做聚合处理,所以不需要将历史的数据存在本地状态仓库
                 //.addStateStore(Stores.create(process).withStringKeys().withStringValues().inMemory().build(),process);
                 //将下一个processor的父节点修改为当前processor
                 parentName = process;
-                logger.info("创建拓扑成功",process);
+
+                logger.info("创建拓扑成功"+process);
             }
-            builder.addSink("sink","output-stream",processList.get(processList.size()-1));
+            builder.addSink("sink_"+topic,"output-stream",processList.get(processList.size()-1));
+            props.put(StreamsConfig.APPLICATION_ID_CONFIG, topic);
+            StreamsConfig config = new StreamsConfig(props);
             KafkaStreams streams = new KafkaStreams(builder, config);
             streams.start();
-            logger.info("开启streams成功,topic:"+topic);
             kafkaStreams.add(streams);
         }
         return kafkaStreams;
