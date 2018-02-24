@@ -26,9 +26,7 @@ public class Application {
     private static List<KafkaStreams> kafkaStreams = new ArrayList<>();
     private static AtomicBoolean ymlModified = new AtomicBoolean();
     public static void main(String[] args) {
-        //启动消费者
-        ExecutorService consumerExcutor = Executors.newSingleThreadExecutor();
-        consumerExcutor.submit(()->MyKafkaConsumer.consumData());
+
         //启动kafka Streams处理
         ExecutorService executor = Executors.newSingleThreadExecutor();
         ScheduledExecutorService executorService = Executors.newScheduledThreadPool(1);
@@ -36,14 +34,15 @@ public class Application {
             ymlModified.set(PropertyReaderUtil.isYmlModified());
             if (ymlModified.get()){
                 MyKafkaConsumer.getIndex();
-                executor.submit(()-> {
-                    kafkaStreams.stream().forEach(p -> p.close());
-                });
+                executor.submit(()-> kafkaStreams.stream().forEach(p -> p.close()));
                 kafkaStreams = MyTopology.topology();
                 logger.info("开启流拓扑");
             }
         };
         //每隔一段时间执行一次
         executorService.scheduleWithFixedDelay(task,0,30,TimeUnit.MINUTES);
+        //启动消费者
+        ExecutorService consumerExcutor = Executors.newSingleThreadExecutor();
+        consumerExcutor.submit(()-> MyKafkaConsumer.consumData());
     }
 }

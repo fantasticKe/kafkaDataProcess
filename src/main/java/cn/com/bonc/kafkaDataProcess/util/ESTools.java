@@ -13,14 +13,13 @@ import java.net.UnknownHostException;
 public class ESTools {
 
 	private static Logger logger = LoggerFactory.getLogger(ESTools.class);
-	private static final String IPCONFIG = "127.0.0.1";
-	private static final int PORT = 9303;
+	private static final String IPCONFIG = "172.17.88.39";
+	private static final int PORT = 9300;
 
 	//创建私有对象
 	private static TransportClient client;
 	static Settings settings = Settings.builder()
-			.put("cluster.name", "esfyb_cluster")
-			//.put("cluster.name","test")
+			.put("cluster.name", "aliyun_es")
 			.put("client.transport.sniff", true).build();
 	static{
 		try {

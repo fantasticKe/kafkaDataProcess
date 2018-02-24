@@ -72,13 +72,6 @@ public class MyTopology {
             builder.addSource("source",topic);
             List<String> processList = processes.get(topic);
             for (String process : processList) {
-                /*try {
-                    //工厂根据processor名称创建Processor实例
-                    ProcessorSupplierFactory.processor(topic,process);
-                } catch (Exception e) {
-                    logger.error("创建processor失败,key:",process,e);
-                }*/
-
                 //为Builder添加processor拓扑
                 builder.addProcessor(process, new ProcessorSupplierFactory(map.get(process)), parentName);
                 //现阶段暂需要做聚合处理,所以不需要将历史的数据存在本地状态仓库
